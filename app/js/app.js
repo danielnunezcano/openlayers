@@ -97,22 +97,6 @@ app.controller("MainController", function ($scope) {
     }),
   });
 
-  const layerPosition2 = (time) => {
-    return new ol.layer.Tile({
-      visible: true,
-      source: new ol.source.TileWMS({
-        projections: ["EPSG:4326"],
-        url: "http://debian:8001/SEGServer/v1/extension/wms/CMAP",
-        params: {
-          LAYERS: "FRONTEX-CACHE:LAND",
-          VERSION: "1.3.0",
-          BGCOLOR: "#0089f5",
-          TIME: time,
-        },
-      }),
-    });
-  };
-
   var layers = [
     new ol.layer.Tile({
       source: new ol.source.OSM(),
