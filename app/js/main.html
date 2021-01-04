@@ -1,0 +1,79 @@
+<home></home>
+<div id="map" class="map"></div>
+
+<div class="menu">
+  <div class="title">Base Layers</div>
+  <div class="contain">
+    <input
+      ng-click="addLayer(0)"
+      type="radio"
+      id="openstreetmaps"
+      name="layers"
+      value="0"
+      checked
+    />
+    <label for="openstreetmaps">OpenStreetMaps</label>
+    <br />
+    <input
+      ng-click="addLayer(1)"
+      type="radio"
+      id="cmap"
+      name="layers"
+      value="1"
+    />
+    <label for="cmap">Bing Maps</label>
+    <br />
+    <input
+      ng-click="addLayer(2)"
+      type="radio"
+      id="cmap"
+      name="layers"
+      value="1"
+    />
+    <label for="cmap">CMAP Base</label>
+  </div>
+  <div class="title">Vessels</div>
+  <div class="contain">
+    <input ng-click="addInfo(0)" type="checkbox" id="vessels" />
+    <label for="vessels">Vessels</label>
+    <br />
+    <input ng-click="addInfo(1)" type="checkbox" id="vectores" />
+    <label for="vectores">Vectores</label>
+  </div>
+  <div class="title">Transparente</div>
+  <div class="contain">
+    <button ng-click="pulsar()">{{transparenLayer}}</button>
+  </div>
+  <div class="title">Zoom</div>
+  <div class="contain">
+    <input
+      type="range"
+      id="zoom"
+      name="zoom"
+      min="1"
+      max="20"
+      step="1"
+      ng-model="zoomIn"
+      ng-change="changeZoom()"
+      value="1"
+    />
+  </div>
+  <div class="title">Fechas</div>
+  <div class="contain formatDate">
+    {{timeString}}
+    <input
+      type="range"
+      id="time"
+      name="time"
+      min="{{timePast}}"
+      max="{{timeIn}}"
+      step="1000"
+      ng-model="time"
+      ng-change="changeTime()"
+      value="{{timePast}}"
+    />
+    <br />
+    {{present}}
+    <br />
+  </div>
+</div>
