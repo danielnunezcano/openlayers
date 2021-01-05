@@ -8,11 +8,12 @@ var app = angular.module("app", ["ngRoute"]).config(function ($routeProvider) {
 });
 
 app.controller("MainController", function ($scope) {
+  const tiempo = 332;
   $scope.transparenLayer = true;
   $scope.visibleLayers = 0;
-  $scope.visibleInfo = [];
+  $scope.visibleInfo = 0;
   $scope.zoomIn = 1;
-  $scope.time = Date.now() - 1000 * 60 * 60 * 24;
+  $scope.time = Date.now();
   $scope.timeIn = Date.now();
   $scope.timePast = Date.now() - 1000 * 60 * 60 * 24;
 
@@ -47,22 +48,26 @@ app.controller("MainController", function ($scope) {
     let fecha = new Date();
     let fechaLast = new Date() - new Date(dateConvert);
     let fechaUTC = fecha.getUTCDate();
-    let hour = new Date(fechaLast).getUTCHours();
+    let hour = new Date(fechaLast).getUTCHours() + tiempo;
     let minutes = new Date(fechaLast).getUTCMinutes();
     let seconds = new Date(fechaLast).getUTCSeconds();
-    console.log(hour+":"+minutes+":"+seconds);
-    return "PT"+hour + "H" + minutes + "M" + seconds+"S/PRESENT";
+    console.log(hour + ":" + minutes + ":" + seconds);
+    return "PT" + hour + "H" + minutes + "M" + seconds + "S/PRESENT";
   };
   $scope.present = convertDate(new Date());
   $scope.timeString = convertDate($scope.time);
 
   $scope.changeTime = () => {
-    let fecha = new Date(Number($scope.time));
-    $scope.timeString = convertDate(fecha);
-    infos.forEach((layer, i) => {
-      mapas.removeLayer(layer);
-    });
-    mapas.getLayers().push(layerPosition(convertDateURL(fecha)));
+    if ($scope.visibleInfo) {
+      let fecha = new Date(Number($scope.time));
+      $scope.timeString = convertDate(fecha);
+      infos.forEach((layer, i) => {
+        mapas.removeLayer(layer);
+      });
+      infos = [];
+      infos.push(layerPosition(convertDateURL(fecha)));
+      mapas.getLayers().push(infos[0]);
+    }
   };
 
   const layerAux = (trans, time) => {
@@ -82,20 +87,21 @@ app.controller("MainController", function ($scope) {
     });
   };
 
-  const layerPosition = (time) => new ol.layer.Tile({
-    visible: true,
-    selectable: "html",
-    source: new ol.source.TileWMS({
+  const layerPosition = (time) =>
+    new ol.layer.Tile({
       visible: true,
-      projections: ["EPSG:4326"],
-      url: "http://debian:8001/SEGServer/v1/extension/wms/SEGPositions",
-      params: {
-        LAYERS: "SEG:SEG_ALL",
-        VERSION: "1.3.0",
-        TIME: time
-      },
-    }),
-  });
+      selectable: "html",
+      source: new ol.source.TileWMS({
+        visible: true,
+        projections: ["EPSG:4326"],
+        url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
+        params: {
+          LAYERS: "SEG:SEG_ALL",
+          VERSION: "1.3.0",
+          TIME: time,
+        },
+      }),
+    });
 
   var layers = [
     new ol.layer.Tile({
@@ -208,36 +214,59 @@ app.controller("MainController", function ($scope) {
   }
 
   var infos = [
-    layerPosition(),
-    new ol.layer.Vector({
-      source: new ol.source.Vector({
-        projection: "EPSG:4326",
-        format: new ol.format.GeoJSON(),
-        url: function (extent) {
-          var array = [];
-          extent.forEach((e) => array.push(e / 1000000));
-          var url =
-            "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG%3ASEG_ALL&outputFormat=application%2Fjson";
-          return url + "&bbox=" + array.join(",");
-        },
-        key: "YWRtaW46RVQ3SlNENlU=",
-        strategy: ol.loadingstrategy.bbox,
-      }),
-      style: new ol.style.Style({
-        image: new ol.style.RegularShape({
-          fill: new ol.style.Fill({
-            color: "orange",
-          }),
-          stroke: new ol.style.Stroke({
-            color: "black",
-          }),
-          points: 3,
-          radius: 10,
-          rotation: 0,
-          angle: 0,
-        }),
-      }),
-    }),
+    layerPosition("PT" + tiempo + "H/PRESENT"),
+    // new ol.layer.Vector({
+    //   source: new ol.source.Vector({
+    //     projection: "EPSG:4326",
+    //     format: new ol.format.GeoJSON(),
+    //     url: function (extent) {
+    //       var array = [];
+    //       extent.forEach((e) => array.push(e / 1000000));
+    //       var url =
+    //         "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG%3ASEG_ALL&outputFormat=application%2Fjson";
+    //       return url + "&bbox=" + array.join(",");
+    //     },
+    //     key: "YWRtaW46RVQ3SlNENlU=",
+    //     strategy: ol.loadingstrategy.bbox,
+    //   }),
+    //   style: new ol.style.Style({
+    //     image: new ol.style.RegularShape({
+    //       fill: new ol.style.Fill({
+    //         color: "orange",
+    //       }),
+    //       stroke: new ol.style.Stroke({
+    //         color: "black",
+    //       }),
+    //       points: 3,
+    //    new ol.layer.Vector({
+    //   source: new ol.source.Vector({
+    //     projection: "EPSG:4326",
+    //     format: new ol.format.GeoJSON(),
+    //     url: function (extent) {
+    //       var array = [];
+    //       extent.forEach((e) => array.push(e / 1000000));
+    //       var url =
+    //         "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG%3ASEG_ALL&outputFormat=application%2Fjson";
+    //       return url + "&bbox=" + array.join(",");
+    //     },
+    //     key: "YWRtaW46RVQ3SlNENlU=",
+    //     strategy: ol.loadingstrategy.bbox,
+    //   }),
+    //   style: new ol.style.Style({
+    //     image: new ol.style.RegularShape({
+    //       fill: new ol.style.Fill({
+    //         color: "orange",
+    //       }),
+    //       stroke: new ol.style.Stroke({
+    //         color: "black",
+    //       }),
+    //       points: 3,
+    //       radius: 10,
+    //       rotation: 0,
+    //       angle: 0,
+    //     }),
+    //   }),
+    // }),
   ];
 
   infos.forEach((layer, i) => {
@@ -259,20 +288,40 @@ app.controller("MainController", function ($scope) {
     });
   };
 
+  // $scope.addInfo = (id) => {
+  //   delete mapas;
+  //   if ($scope.visibleInfo[id]) {
+  //     $scope.visibleInfo[id] = false;
+  //     mapas.removeLayer(infos[id]);
+  //   } else {
+  //     $scope.visibleInfo[id] = true;
+  //     layers.forEach((layer, i) => {
+  //       mapas.removeLayer(layer);
+  //       if ($scope.visibleLayers === i) mapas.getLayers().push(layer);
+  //     });
+  //     infos.forEach((layer, i) => {
+  //       mapas.removeLayer(layer);
+  //       if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
+  //     });
+  //   }
+  // };
+
   $scope.addInfo = (id) => {
     delete mapas;
-    if ($scope.visibleInfo[id]) {
-      $scope.visibleInfo[id] = false;
-      mapas.removeLayer(infos[id]);
+    if ($scope.visibleInfo) {
+      $scope.visibleInfo = false;
+      infos.forEach((layer) => {
+        mapas.removeLayer(layer);
+      });
     } else {
-      $scope.visibleInfo[id] = true;
+      $scope.visibleInfo = true;
       layers.forEach((layer, i) => {
         mapas.removeLayer(layer);
         if ($scope.visibleLayers === i) mapas.getLayers().push(layer);
       });
       infos.forEach((layer, i) => {
         mapas.removeLayer(layer);
-        if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
+        if ($scope.visibleInfo) mapas.getLayers().push(layer);
       });
     }
   };

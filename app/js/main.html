@@ -36,9 +36,9 @@
   <div class="contain">
     <input ng-click="addInfo(0)" type="checkbox" id="vessels" />
     <label for="vessels">Vessels</label>
-    <br />
+    <!-- <br />
     <input ng-click="addInfo(1)" type="checkbox" id="vectores" />
-    <label for="vectores">Vectores</label>
+    <label for="vectores">Vectores</label> -->
   </div>
   <div class="title">Transparente</div>
   <div class="contain">
@@ -70,7 +70,7 @@
       step="1000"
       ng-model="time"
       ng-change="changeTime()"
-      value="{{timePast}}"
+      value="{{timeIn}}"
     />
     <br />
     {{present}}
