@@ -1,3 +1,43 @@
 .crossed {
   text-decoration: line-through;
 }
+
+body {
+  margin: 0;
+}
+h1 {
+  position: absolute;
+  z-index: 1;
+}
+.map {
+  position: absolute;
+  height: 100vh;
+  width: 100%;
+}
+.menu {
+  position: absolute;
+  margin-left: 10px;
+  top: 80px;
+}
+
+.title {
+  border-radius: 5px 5px 0px 0px;
+  width: 200px;
+  padding: 10px;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: #5a9eff;
+  color: blanchedalmond;
+}
+
+.contain {
+  border-radius: 0px 0px 5px 5px;
+  width: 200px;
+  padding: 10px;
+  font-size: 14px;
+  background-color: white;
+}
+
+.formatDate {
+  font-size: 10px;
+}
