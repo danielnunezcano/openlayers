@@ -7,6 +7,55 @@ var app = angular.module("app", ["ngRoute"]).config(function ($routeProvider) {
     .otherwise({ redirectTo: "/main" });
 });
 
+app.factory("MapLayers", function () {
+  this.layerVector = new ol.layer.VectorTile({
+    visible: true,
+    source: new ol.source.VectorTile({
+      format: new ol.format.GeoJSON(),
+      url:
+        "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows",
+      params: {
+        LAYERS: "SEG:SEG_ALL",
+        VERSION: "1.3.0",
+      },
+    }),
+  });
+  this.layerTracks = new ol.layer.Vector({
+    visible: true,
+    source: new ol.source.Vector({
+      format: new ol.format.GeoJSON(),
+      url: "/mocks/countries.json",
+    }),
+  });
+  this.layerPosition = new ol.layer.Tile({
+    visible: true,
+    selectable: "html",
+    source: new ol.source.TileWMS({
+      key: "YWRtaW46RVQ3SlNENlU=",
+      visible: true,
+      projections: ["EPSG:4326"],
+      url:
+        "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/wms",
+      params: {
+        LAYERS: "SEG:SEG_ALL",
+        VERSION: "1.3.0",
+      },
+    }),
+  });
+  return {
+    infos: [this.layerPosition, this.layerTracks, this.layerVector],
+  };
+});
+
+app.factory("MapFactory", function () {
+  return {
+    status: "estado 0",
+    lon: -0,
+    lat: 0,
+    mapas: null,
+  };
+});
+
 app.service("MapService", function () {
   this.convertDate = (dateConvert) => {
     let fecha = new Date(Number(dateConvert));
@@ -45,12 +94,15 @@ app.service("MapService", function () {
 app.controller("MainController", [
   "$scope",
   "MapService",
-  function ($scope, mapService) {
+  "MapFactory",
+  "MapLayers",
+  function ($scope, mapService, mapFactory, mapLayers) {
     $scope.transparenLayer = true;
     $scope.visibleLayers = 0;
     $scope.visibleInfo = [];
     $scope.visibleInfo[0] = 0;
     $scope.visibleInfo[1] = 0;
+    $scope.visibleInfo[2] = 0;
     $scope.zoomIn = 1;
     $scope.time = Date.now();
     $scope.timeIn = Date.now();
@@ -62,6 +114,10 @@ app.controller("MainController", [
 
     $scope.present = mapService.convertDate(new Date());
     $scope.timeString = mapService.convertDate($scope.time);
+
+    console.log(mapFactory.status);
+    mapFactory.status = "nuevo estado";
+    console.log(mapFactory.status);
 
     $scope.changeTime = () => {
       if ($scope.visibleInfo) {
@@ -95,34 +151,6 @@ app.controller("MainController", [
       });
     };
 
-    const layerTracks = () => {
-      return new ol.layer.Vector({
-        visible: true,
-        source: new ol.source.Vector({
-          format: new ol.format.GeoJSON(),
-          url: "/mocks/countries.json",
-        }),
-      });
-    };
-
-    const layerPosition = (time) =>
-      new ol.layer.Tile({
-        visible: true,
-        selectable: "html",
-        source: new ol.source.TileWMS({
-          key: "YWRtaW46RVQ3SlNENlU=",
-          visible: true,
-          projections: ["EPSG:4326"],
-          url:
-            "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/wms",
-          params: {
-            LAYERS: "SEG:SEG_ALL",
-            VERSION: "1.3.0",
-            TIME: time,
-          },
-        }),
-      });
-
     var layers = [
       new ol.layer.Tile({
         source: new ol.source.OSM(),
@@ -153,8 +181,8 @@ app.controller("MainController", [
         navigator.geolocation &&
         navigator.geolocation.getCurrentPosition(
           function (objPosition) {
-            lon = objPosition.coords.longitude;
-            lat = objPosition.coords.latitude;
+            mapFactory.lon = objPosition.coords.longitude;
+            mapFactory.lat = objPosition.coords.latitude;
             mapas = maps(lon, lat);
           },
           function (objPositionError) {
@@ -233,9 +261,9 @@ app.controller("MainController", [
         );
     }
 
-    var infos = [layerPosition(), layerTracks()];
+    //var infos = [mapLayers.layerPosition, mapLayers.layerTracks, mapLayers.layerVector];
 
-    infos.forEach((layer, i) => {
+    mapLayers.infos.forEach((layer, i) => {
       $scope.visibleInfo[i] = false;
     });
 
@@ -248,7 +276,7 @@ app.controller("MainController", [
           mapas.getLayers().push(layer);
         }
       });
-      infos.forEach((layer, i) => {
+      mapLayers.infos.forEach((layer, i) => {
         mapas.removeLayer(layer);
         if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
       });
@@ -258,14 +286,14 @@ app.controller("MainController", [
       delete mapas;
       if ($scope.visibleInfo[id]) {
         $scope.visibleInfo[id] = false;
-        mapas.removeLayer(infos[id]);
+        mapas.removeLayer(mapLayers.infos[id]);
       } else {
         $scope.visibleInfo[id] = true;
         layers.forEach((layer, i) => {
           mapas.removeLayer(layer);
           if ($scope.visibleLayers === i) mapas.getLayers().push(layer);
         });
-        infos.forEach((layer, i) => {
+        mapLayers.infos.forEach((layer, i) => {
           mapas.removeLayer(layer);
           if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
         });
