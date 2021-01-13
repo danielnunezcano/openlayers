@@ -9,20 +9,15 @@ var app = angular.module("app", ["ngRoute"]).config(function ($routeProvider) {
 
 app.factory("MapLayers", function () {
   this.layerVector = new ol.layer.VectorTile({
-    visible: true,
     source: new ol.source.VectorTile({
-      format: new ol.format.GeoJSON(),
-      url:
-        "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows",
-      params: {
-        LAYERS: "SEG:SEG_ALL",
-        VERSION: "1.3.0",
-      },
+      format: new ol.format.KML(),
+      key: "YWRtaW46RVQ3SlNENlU=",
+      url:"http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/wms?service=WMS&version=1.1.0&request=GetMap&layers=SEG%3ASEG_ALL&bbox=-180.0%2C-90.0%2C180.0%2C90.0&width=768&height=384&srs=EPSG%3A4326/kml?layers=SEG:SEG_ALL"
     }),
   });
   this.layerTracks = new ol.layer.Vector({
     visible: true,
-    source: new ol.source.Vector({
+    source: new ol.source.VectorTile({
       format: new ol.format.GeoJSON(),
       url: "/mocks/countries.json",
     }),
