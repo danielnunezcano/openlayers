@@ -8,12 +8,60 @@ var app = angular.module("app", ["ngRoute"]).config(function ($routeProvider) {
 });
 
 app.factory("MapLayers", function () {
-  this.layerVector = new ol.layer.VectorTile({
-    source: new ol.source.VectorTile({
-      format: new ol.format.GeoJSON(),
-      key: "YWRtaW46RVQ3SlNENlU=",
-      url: "http://a10p044:8001/SEGServer/v1/wfs/SEGPositionsWfs"
+  this.styleFunction = (feature, resolution) => {
+    var style;
+    var geom = feature.getGeometry();
+    if (geom.getType() == "Point") {
+      var text = feature.get("text");
+      baseTextStyle.text = text;
+      // this is inefficient as it could create new style objects for the
+      // same text.
+      // A good exercise to see if you understand would be to add caching
+      // of this text style
+      var isoCode = feature.get("isoCode").toLowerCase();
+      style = new ol.style.Style({
+        text: new ol.style.Text(baseTextStyle),
+        image: new ol.style.Icon({
+          src: "../assets/img/flags/" + isoCode + ".png",
+        }),
+        zIndex: 2,
+      });
+    } else {
+      style = highlightStyle;
+    }
+
+    return [style];
+  };
+  this.style = (feature) => [
+    new ol.style.Style({
+      text: new ol.style.Text({
+        text: feature.values_.ORIGINATOR_ORG == "ES" && feature.values_.ORIGINATOR_ORG,
+        font: "12px Calibri,sans-serif",
+        textAlign: "center",
+        offsetY: -15,
+      }),
+      image: new ol.style.RegularShape({
+        fill: new ol.style.Fill({
+          color: feature.values_.ORIGINATOR_ORG == "ES" ? [251, 255, 0, 1] : [200, 200, 200, 1],
+        }),
+        stroke: new ol.style.Stroke({
+          color: feature.values_.ORIGINATOR_ORG == "ES" ? [255, 0, 0, 1] : [100, 100, 100, 1],
+          width: 3
+        }),
+        points: 3,
+        radius: 10,
+        rotation: Math.PI / 4,
+        angle: 0,
+      }),
     }),
+  ];
+  this.layerVector = new ol.layer.Vector({
+    source: new ol.source.Vector({
+      format: new ol.format.GeoJSON(),
+      url: "/mocks/features.json",
+      //url: "http://a10p044:8001/SEGServer/v1/wfs/SEGPositionsWfs/{x}"
+    }),
+    style: this.style,
   });
   this.layerTracks = new ol.layer.Vector({
     visible: true,
@@ -26,13 +74,13 @@ app.factory("MapLayers", function () {
     visible: true,
     selectable: "html",
     source: new ol.source.TileWMS({
-      key: "YWRtaW46RVQ3SlNENlU=",
       visible: true,
       projections: ["EPSG:4326"],
-      url: "http://a10p044:8001/SEGServer/v1/wms/SEGpositions",
+      url: "http://a10p044:8001/SEGServer/v1/wms/SEGPositions",
       params: {
         LAYERS: "SEG:SEG_ALL",
         VERSION: "1.3.0",
+        MAX_FEATURES: "50",
       },
     }),
   });
@@ -43,7 +91,6 @@ app.factory("MapLayers", function () {
 
 app.factory("MapFactory", function () {
   return {
-    status: "estado 0",
     lon: -0,
     lat: 0,
     mapas: null,
@@ -109,10 +156,6 @@ app.controller("MainController", [
     $scope.present = mapService.convertDate(new Date());
     $scope.timeString = mapService.convertDate($scope.time);
 
-    console.log(mapFactory.status);
-    mapFactory.status = "nuevo estado";
-    console.log(mapFactory.status);
-
     $scope.changeTime = () => {
       if ($scope.visibleInfo) {
         let fecha = new Date(Number($scope.time));
@@ -160,7 +203,7 @@ app.controller("MainController", [
       layerAux(false),
     ];
 
-    const maps = (lon, lat) =>
+    var maps = (lon, lat) =>
       new ol.Map({
         target: "map",
         layers: [layers[$scope.visibleLayers]],
@@ -222,26 +265,6 @@ app.controller("MainController", [
 
     layers.forEach((layer, i) => {
       $scope.visibleLayers[i] = true;
-    });
-
-    var style = new ol.style.Style({
-      fill: new ol.style.Fill({
-        color: "rgba(255, 255, 255, 0.6)",
-      }),
-      stroke: new ol.style.Stroke({
-        color: "#319FD3",
-        width: 1,
-      }),
-      text: new ol.style.Text({
-        font: "12px Calibri,sans-serif",
-        fill: new ol.style.Fill({
-          color: "#000",
-        }),
-        stroke: new ol.style.Stroke({
-          color: "#fff",
-          width: 3,
-        }),
-      }),
     });
 
     function tileUrlFunction(tileCoord) {
