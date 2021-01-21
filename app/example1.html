@@ -1,0 +1,107 @@
+<html>
+  <head>
+    <title>ol Marker Overload</title>
+  </head>
+  <body>
+    <div id="mapdiv"></div>
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.4.3/build/ol.js"></script>
+    <script>
+      function rand(min, max) {
+        var offset = min;
+        var range = max - min + 1;
+
+        var randomNumber = Math.floor(Math.random() * range) + offset;
+        return randomNumber;
+      }
+
+      map = new ol.Map("mapdiv");
+      map.addLayer(
+        new ol.layer.Tile({
+          source: new ol.source.OSM(),
+        })
+      );
+
+      epsg4326 = new ol.proj.Projection("EPSG:4326"); //WGS 1984 projection
+
+      var centrelon = -0.1279688;
+      var centrelat = 51.5077286;
+      var lonLat = ol.proj.fromLonLat([centrelon, centrelat]);
+
+      var zoom = 14;
+      map.getView().setCenter(lonLat, zoom);
+
+      var vectorSource = new ol.source.Vector({});
+      var vectorLayer = new ol.layer.Vector({
+        id: "Overlay",
+        source: vectorSource,
+      });
+
+      // Define an array of markers
+      var markers = [];
+
+      var height = 0.01;
+      var width = 0.03;
+
+      for (var i = 0; i < 1000; i++) {
+        var lat = centrelat + (rand(-1000, 1000) / 1000) * height;
+        var lon = centrelon + (rand(-1000, 1000) / 1000) * width;
+
+        markers.push([lon, lat, "marker " + i]);
+      }
+
+      //Loop through the markers array
+      for (var i = 0; i < markers.length; i++) {
+        var lon = markers[i][0];
+        var lat = markers[i][1];
+        var description = markers[i][2];
+
+        var feature = new ol.Feature(
+          new ol.geom.Point(lon, lat),
+          { description: description },
+          {
+            externalGraphic: "img/marker.png",
+            graphicHeight: 25,
+            graphicWidth: 21,
+            graphicXOffset: -12,
+            graphicYOffset: -25,
+          }
+        );
+        vectorSource.addFeature(feature);
+      }
+
+      map.addLayer(vectorLayer);
+
+      //Add a selector control to the vectorLayer with popup functions
+      var controls = {
+        selector: new ol.interaction.Select (vectorLayer, {
+          onSelect: createPopup,
+          onUnselect: destroyPopup,
+        }),
+      };
+
+      function createPopup(feature) {
+        feature.popup = new ol.Popup.FramedCloud(
+          "pop",
+          feature.geometry.getBounds().getCenterLonLat(),
+          null,
+          '<div class="markerContent">' +
+            feature.attributes.description +
+            "</div>",
+          null,
+          true,
+          function () {
+            controls["selector"].unselectAll();
+          }
+        );
+        //feature.popup.closeOnMove = true;
+        map.addPopup(feature.popup);
+      }
+
+      function destroyPopup(feature) {
+        feature.popup.destroy();
+        feature.popup = null;
+      }
+
+    </script>
+  </body>
+</html>

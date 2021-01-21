@@ -8,45 +8,27 @@ var app = angular.module("app", ["ngRoute"]).config(function ($routeProvider) {
 });
 
 app.factory("MapLayers", function () {
-  this.styleFunction = (feature, resolution) => {
-    var style;
-    var geom = feature.getGeometry();
-    if (geom.getType() == "Point") {
-      var text = feature.get("text");
-      baseTextStyle.text = text;
-      // this is inefficient as it could create new style objects for the
-      // same text.
-      // A good exercise to see if you understand would be to add caching
-      // of this text style
-      var isoCode = feature.get("isoCode").toLowerCase();
-      style = new ol.style.Style({
-        text: new ol.style.Text(baseTextStyle),
-        image: new ol.style.Icon({
-          src: "../assets/img/flags/" + isoCode + ".png",
-        }),
-        zIndex: 2,
-      });
-    } else {
-      style = highlightStyle;
-    }
-
-    return [style];
-  };
   this.style = (feature) => [
     new ol.style.Style({
       text: new ol.style.Text({
-        text: feature.values_.ORIGINATOR_ORG == "ES" && feature.values_.ORIGINATOR_ORG,
+        text: feature.values_.SHIP_NAME,
         font: "12px Calibri,sans-serif",
         textAlign: "center",
         offsetY: -15,
       }),
       image: new ol.style.RegularShape({
         fill: new ol.style.Fill({
-          color: feature.values_.ORIGINATOR_ORG == "ES" ? [251, 255, 0, 1] : [200, 200, 200, 1],
+          color:
+            feature.values_.ORIGINATOR_ORG == "ES"
+              ? [251, 255, 0, 1]
+              : [200, 200, 200, 1],
         }),
         stroke: new ol.style.Stroke({
-          color: feature.values_.ORIGINATOR_ORG == "ES" ? [255, 0, 0, 1] : [100, 100, 100, 1],
-          width: 3
+          color:
+            feature.values_.ORIGINATOR_ORG == "ES"
+              ? [255, 0, 0, 1]
+              : [100, 100, 100, 1],
+          width: 3,
         }),
         points: 3,
         radius: 10,
@@ -58,8 +40,8 @@ app.factory("MapLayers", function () {
   this.layerVector = new ol.layer.Vector({
     source: new ol.source.Vector({
       format: new ol.format.GeoJSON(),
-      url: "/mocks/features.json",
-      //url: "http://a10p044:8001/SEGServer/v1/wfs/SEGPositionsWfs/{x}"
+      url:
+        "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows",
     }),
     style: this.style,
   });
@@ -71,21 +53,42 @@ app.factory("MapLayers", function () {
     }),
   });
   this.layerPosition = new ol.layer.Tile({
+    id: "positions",
     visible: true,
     selectable: "html",
     source: new ol.source.TileWMS({
       visible: true,
       projections: ["EPSG:4326"],
-      url: "http://a10p044:8001/SEGServer/v1/wms/SEGPositions",
+      url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
       params: {
         LAYERS: "SEG:SEG_ALL",
         VERSION: "1.3.0",
-        MAX_FEATURES: "50",
+      },
+    }),
+  });
+  this.layerPositionInfo = new ol.layer.Tile({
+    visible: true,
+    selectable: "html",
+    source: new ol.source.TileWMS({
+      visible: true,
+      projections: ["EPSG:4326"],
+      url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
+      params: {
+        LAYERS: "SEG:SEG_ALL",
+        VERSION: "1.3.0",
+        RENDERLABEL:
+          "SEG:SEG_ALL;EMSA_ID IN (129747);FLAG_STATE,SHIP_NAME,IMO,MMSI,IR,CALL_SIGN,EXTERNAL_MARKING",
+        EXCEPTIONS: "application/vnd.ogc.se_inimage",
       },
     }),
   });
   return {
-    infos: [this.layerPosition, this.layerTracks, this.layerVector],
+    infos: [
+      this.layerPosition,
+      this.layerTracks,
+      this.layerVector,
+      this.layerPositionInfo,
+    ],
   };
 });
 
@@ -98,6 +101,24 @@ app.factory("MapFactory", function () {
 });
 
 app.service("MapService", function () {
+  this.distanciaCoord = (point1, point2) => {
+    //double radioTierra = 3958.75;//en millas
+    const radioTierra = 6371; //en kilómetros
+    const dLat = (point2.lat - point1.lat) * (Math.PI / 180);
+    const dLng = (point2.lng - point1.lng) * (Math.PI / 180);
+    const sindLat = Math.sin(dLat / 2);
+    const sindLng = Math.sin(dLng / 2);
+    const va1 =
+      Math.pow(sindLat, 2) +
+      Math.pow(sindLng, 2) *
+        Math.cos(point1.lat * (Math.PI / 180)) *
+        Math.cos(point2.lat * (Math.PI / 180));
+    const va2 = 2 * Math.atan2(Math.sqrt(va1), Math.sqrt(1 - va1));
+    const distancia = radioTierra * va2;
+
+    return distancia;
+  };
+
   this.convertDate = (dateConvert) => {
     let fecha = new Date(Number(dateConvert));
     let day = fecha.getDate();
@@ -153,22 +174,38 @@ app.controller("MainController", [
     let lat = 0;
     let mapas = null;
 
+    var tiempo = "PT0H/PRESENT";
+
     $scope.present = mapService.convertDate(new Date());
     $scope.timeString = mapService.convertDate($scope.time);
 
     $scope.changeTime = () => {
-      if ($scope.visibleInfo) {
+      mapas.getLayers().forEach((layer) => {
         let fecha = new Date(Number($scope.time));
         $scope.timeString = mapService.convertDate(fecha);
-        infos.forEach((layer, i) => {
-          mapas.removeLayer(layer);
-        });
-        infos = [];
-        infos.push(layerPosition(mapService.convertDateURL(fecha)));
-        mapas.getLayers().push(infos[0]);
-      }
+        var url =
+          layer.getProperties() &&
+          layer.getProperties().id &&
+          layer.getSource().getUrls();
+        if (layer.getProperties() && layer.getProperties().id) {
+          var source = layer.getSource();
+          layer
+            .getSource()
+            .updateParams({ TIME: mapService.convertDateURL(fecha) });
+          //layer.getSource().setUrls(url)
+        }
+      });
+      // if ($scope.visibleInfo) {
+      //   let fecha = new Date(Number($scope.time));
+      //   $scope.timeString = mapService.convertDate(fecha);
+      //   infos.forEach((layer, i) => {
+      //     mapas.removeLayer(layer);
+      //   });
+      //   infos = [];
+      //   infos.push(layerPosition(mapService.convertDateURL(fecha)));
+      //   mapas.getLayers().push(infos[0]);
+      // }
     };
-
     const layerAux = (trans, time) => {
       return new ol.layer.Tile({
         visible: true,
@@ -182,11 +219,18 @@ app.controller("MainController", [
             VERSION: "1.3.0",
             TRANSPARENT: trans,
             BGCOLOR: "#0089f5",
-            TIME: time,
+            TIME: tiempo,
           },
         }),
       });
     };
+
+    console.log(
+      mapService.distanciaCoord(
+        { lat: 38.34685, lng: -0.505313 },
+        { lat: 38.34607, lng: -0.506799 }
+      )
+    );
 
     var layers = [
       new ol.layer.Tile({
@@ -197,17 +241,33 @@ app.controller("MainController", [
           imagerySet: ["Aerial"],
           key:
             "AjYFgPajAtr1ZYaNsAQagj0mKBatMmzZRUIE5HnnAZ9sTL34e19O-8aJiSjNEWjL",
-          projections: ["EPSG:3395"],
+          projections: ["EPSG:4326"],
         }),
       }),
-      layerAux(false),
+      new ol.layer.Tile({
+        source: new ol.source.TileWMS({
+          key: "YWRtaW46RVQ3SlNENlU=",
+          projections: ["EPSG:4326"],
+          url:
+            "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/FRONTEX-CACHE/wms",
+          params: {
+            LAYERS: "FRONTEX-CACHE:LAND",
+            VERSION: "1.3.0",
+            BGCOLOR: "#0089f5",
+            TIME: tiempo,
+          },
+        }),
+      }),
     ];
+
+    var valores = { lat: 0 };
 
     var maps = (lon, lat) =>
       new ol.Map({
         target: "map",
         layers: [layers[$scope.visibleLayers]],
         view: new ol.View({
+          projection: "EPSG:4326",
           center: ol.proj.fromLonLat([lon, lat]),
           zoom: $scope.zoomIn,
         }),
@@ -221,6 +281,38 @@ app.controller("MainController", [
             mapFactory.lon = objPosition.coords.longitude;
             mapFactory.lat = objPosition.coords.latitude;
             mapas = maps(lon, lat);
+            mapas.on("click", function (evt) {
+              var clickPositionArray = ol.coordinate
+                .createStringXY(10)(evt.coordinate)
+                .split(",");
+              const clickPosition = {
+                lat: clickPositionArray[0],
+                lng: clickPositionArray[1],
+              };
+              console.log(clickPosition);
+              console.log("mapas.zoom: " + mapas.getView().getZoom());
+              let minDistance = null;
+              fetch("/mocks/vessels.json")
+                .then((response) => response.json())
+                .then((data) =>
+                  data.features.forEach((feature) => {
+                    const featurePoint = {
+                      lat: feature.geometry.coordinates[0],
+                      lng: feature.geometry.coordinates[1],
+                    };
+                    const distance = mapService.distanciaCoord(
+                      clickPosition,
+                      featurePoint
+                    );
+                    if (minDistance == null || minDistance > distance)
+                      minDistance = distance;
+                    console.log(
+                      mapService.distanciaCoord(clickPosition, featurePoint)
+                    );
+                  })
+                ).then(data => console.log(minDistance));
+                
+            });
           },
           function (objPositionError) {
             lon = 0.0;
@@ -241,11 +333,6 @@ app.controller("MainController", [
     };
 
     $scope.pulsar = () => {
-      // layers[2].sourceChangeKey_.target.params_ &&
-      // layers[2].sourceChangeKey_.target.params_.TRANSPARENT ?
-      // layers[2].sourceChangeKey_.target.params_.TRANSPARENT=false :
-      // layers[2].sourceChangeKey_.target.params_.TRANSPARENT=true;
-      //console.log(mapas.getLayers().array_[0].sourceChangeKey_.target.params_.TRANSPARENT);
       $scope.transparenLayer = !$scope.transparenLayer;
       layers.push(layerAux($scope.transparenLayer, "PT6H20M12S/PRESENT"));
       layers.forEach((layer, i) => {
@@ -253,15 +340,6 @@ app.controller("MainController", [
       });
       mapas.getLayers().push(layers[layers.length - 1]);
     };
-
-    // $scope.pulsar = (id) => {
-    //   if ($scope.transparenLayer) {
-    //     $scope.addLayer(3);
-    //   } else {
-    //     $scope.addLayer(2);
-    //   }
-    //   $scope.transparenLayer = !$scope.transparenLayer;
-    // };
 
     layers.forEach((layer, i) => {
       $scope.visibleLayers[i] = true;
@@ -277,8 +355,6 @@ app.controller("MainController", [
           "abcd".substr(((tileCoord[1] << tileCoord[0]) + tileCoord[2]) % 4, 1)
         );
     }
-
-    //var infos = [mapLayers.layerPosition, mapLayers.layerTracks, mapLayers.layerVector];
 
     mapLayers.infos.forEach((layer, i) => {
       $scope.visibleInfo[i] = false;
