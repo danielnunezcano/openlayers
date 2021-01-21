@@ -41,7 +41,7 @@ app.factory("MapLayers", function () {
     source: new ol.source.Vector({
       format: new ol.format.GeoJSON(),
       url:
-        "http://rtmps-stg-geoserver-1.emsa.geo-solutions.it/geoserver/SEG/ows",
+        "/mocks/features.json",
     }),
     style: this.style,
   });
@@ -188,11 +188,9 @@ app.controller("MainController", [
           layer.getProperties().id &&
           layer.getSource().getUrls();
         if (layer.getProperties() && layer.getProperties().id) {
-          var source = layer.getSource();
           layer
             .getSource()
             .updateParams({ TIME: mapService.convertDateURL(fecha) });
-          //layer.getSource().setUrls(url)
         }
       });
       // if ($scope.visibleInfo) {
@@ -273,6 +271,24 @@ app.controller("MainController", [
         }),
       });
 
+    const mostrarResultado = {
+      type: "FeatureCollection",
+      features: [],
+      crs: {
+          type: "name",
+          properties: {
+              name: "urn:ogc:def:crs:EPSG::4326"
+          }
+      }
+    };
+
+    const layerResultado = new ol.layer.Vector({
+      source: new ol.source.Vector({
+        format: new ol.format.GeoJSON(),
+      }),
+      style: this.style,
+    });
+
     const navCoor = () => {
       return (
         navigator.geolocation &&
@@ -292,6 +308,7 @@ app.controller("MainController", [
               console.log(clickPosition);
               console.log("mapas.zoom: " + mapas.getView().getZoom());
               let minDistance = null;
+              let resultFeature = null;
               fetch("/mocks/vessels.json")
                 .then((response) => response.json())
                 .then((data) =>
@@ -304,13 +321,21 @@ app.controller("MainController", [
                       clickPosition,
                       featurePoint
                     );
-                    if (minDistance == null || minDistance > distance)
+                    if (minDistance == null || minDistance > distance){
+                      resultFeature = feature;
                       minDistance = distance;
+                    };
                     console.log(
                       mapService.distanciaCoord(clickPosition, featurePoint)
                     );
                   })
-                ).then(data => console.log(minDistance));
+                ).then(() => {
+                  var iconFeature = new ol.Feature(new ol.geom.Point([resultFeature.geometry.coordinates[0], resultFeature.geometry.coordinates[1]]));
+                  //console.log(iconFeature);
+                  layerResultado.getSource().addFeature(iconFeature)
+                  mapas.getLayers().push(layerResultado);
+                  //console.log(layerResultado);
+                });
                 
             });
           },
