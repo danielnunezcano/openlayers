@@ -11,9 +11,9 @@ app.factory("MapLayers", function () {
   this.style = (feature) => [
     new ol.style.Style({
       text: new ol.style.Text({
-        text: feature.values_.SHIP_NAME,
+        text: featureproperties.POS_ID,
         font: "12px Calibri,sans-serif",
-        textAlign: "center",
+        textAlign: "left",
         offsetY: -15,
       }),
       image: new ol.style.RegularShape({
@@ -41,7 +41,7 @@ app.factory("MapLayers", function () {
     source: new ol.source.Vector({
       format: new ol.format.GeoJSON(),
       url:
-        "/mocks/features.json",
+        "http://debian:8001/SEGServer/v1/wfs/SEGPositionsWfs?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG:SEG_ALL&maxFeatures=50&outputFormat=application/json",
     }),
     style: this.style,
   });
@@ -57,6 +57,9 @@ app.factory("MapLayers", function () {
     visible: true,
     selectable: "html",
     source: new ol.source.TileWMS({
+      refresh: {
+        force: true,
+      },
       visible: true,
       projections: ["EPSG:4326"],
       url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
@@ -94,8 +97,8 @@ app.factory("MapLayers", function () {
 
 app.factory("MapFactory", function () {
   return {
-    lon: -0,
-    lat: 0,
+    lon: 38.3346994376,
+    lat: -0.4796058945,
     mapas: null,
   };
 });
@@ -154,24 +157,27 @@ app.service("MapService", function () {
 });
 
 app.controller("MainController", [
+  "$timeout",
   "$scope",
   "MapService",
   "MapFactory",
   "MapLayers",
-  function ($scope, mapService, mapFactory, mapLayers) {
+  function ($timeout, $scope, mapService, mapFactory, mapLayers) {
+    const servicioWFS =
+      "http://debian:8001/SEGServer/v1/wfs/SEGPositionsWfs?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG:SEG_ALL&maxFeatures=50&outputFormat=application/json";
     $scope.transparenLayer = true;
     $scope.visibleLayers = 0;
     $scope.visibleInfo = [];
     $scope.visibleInfo[0] = 0;
     $scope.visibleInfo[1] = 0;
     $scope.visibleInfo[2] = 0;
-    $scope.zoomIn = 1;
+    $scope.zoomIn = 15;
     $scope.time = Date.now();
     $scope.timeIn = Date.now();
     $scope.timePast = Date.now() - 1000 * 60 * 60 * 24;
 
-    let lon = -0;
-    let lat = 0;
+    let lon = -0.4796058945;
+    let lat = 38.3346994376;
     let mapas = null;
 
     var tiempo = "PT0H/PRESENT";
@@ -193,16 +199,6 @@ app.controller("MainController", [
             .updateParams({ TIME: mapService.convertDateURL(fecha) });
         }
       });
-      // if ($scope.visibleInfo) {
-      //   let fecha = new Date(Number($scope.time));
-      //   $scope.timeString = mapService.convertDate(fecha);
-      //   infos.forEach((layer, i) => {
-      //     mapas.removeLayer(layer);
-      //   });
-      //   infos = [];
-      //   infos.push(layerPosition(mapService.convertDateURL(fecha)));
-      //   mapas.getLayers().push(infos[0]);
-      // }
     };
     const layerAux = (trans, time) => {
       return new ol.layer.Tile({
@@ -222,13 +218,6 @@ app.controller("MainController", [
         }),
       });
     };
-
-    console.log(
-      mapService.distanciaCoord(
-        { lat: 38.34685, lng: -0.505313 },
-        { lat: 38.34607, lng: -0.506799 }
-      )
-    );
 
     var layers = [
       new ol.layer.Tile({
@@ -266,7 +255,7 @@ app.controller("MainController", [
         layers: [layers[$scope.visibleLayers]],
         view: new ol.View({
           projection: "EPSG:4326",
-          center: ol.proj.fromLonLat([lon, lat]),
+          center: ol.proj.fromLonLat([lat, lon], "EPSG:4326"),
           zoom: $scope.zoomIn,
         }),
       });
@@ -275,14 +264,15 @@ app.controller("MainController", [
       type: "FeatureCollection",
       features: [],
       crs: {
-          type: "name",
-          properties: {
-              name: "urn:ogc:def:crs:EPSG::4326"
-          }
-      }
+        type: "name",
+        properties: {
+          name: "urn:ogc:def:crs:EPSG::4326",
+        },
+      },
     };
 
     const layerResultado = new ol.layer.Vector({
+      id: "resultVessel",
       source: new ol.source.Vector({
         format: new ol.format.GeoJSON(),
       }),
@@ -296,7 +286,7 @@ app.controller("MainController", [
           function (objPosition) {
             mapFactory.lon = objPosition.coords.longitude;
             mapFactory.lat = objPosition.coords.latitude;
-            mapas = maps(lon, lat);
+            mapas = maps(mapFactory.lat, mapFactory.lon);
             mapas.on("click", function (evt) {
               var clickPositionArray = ol.coordinate
                 .createStringXY(10)(evt.coordinate)
@@ -307,36 +297,7 @@ app.controller("MainController", [
               };
               console.log(clickPosition);
               console.log("mapas.zoom: " + mapas.getView().getZoom());
-              let minDistance = null;
-              let resultFeature = null;
-              fetch("/mocks/vessels.json")
-                .then((response) => response.json())
-                .then((data) =>
-                  data.features.forEach((feature) => {
-                    const featurePoint = {
-                      lat: feature.geometry.coordinates[0],
-                      lng: feature.geometry.coordinates[1],
-                    };
-                    const distance = mapService.distanciaCoord(
-                      clickPosition,
-                      featurePoint
-                    );
-                    if (minDistance == null || minDistance > distance){
-                      resultFeature = feature;
-                      minDistance = distance;
-                    };
-                    console.log(
-                      mapService.distanciaCoord(clickPosition, featurePoint)
-                    );
-                  })
-                ).then(() => {
-                  var iconFeature = new ol.Feature(new ol.geom.Point([resultFeature.geometry.coordinates[0], resultFeature.geometry.coordinates[1]]));
-                  //console.log(iconFeature);
-                  layerResultado.getSource().addFeature(iconFeature)
-                  mapas.getLayers().push(layerResultado);
-                  //console.log(layerResultado);
-                });
-                
+              fetchRTMPS(servicioWFS, clickPosition);
             });
           },
           function (objPositionError) {
@@ -402,6 +363,7 @@ app.controller("MainController", [
 
     $scope.addInfo = (id) => {
       delete mapas;
+      $timeout();
       if ($scope.visibleInfo[id]) {
         $scope.visibleInfo[id] = false;
         mapas.removeLayer(mapLayers.infos[id]);
@@ -414,8 +376,243 @@ app.controller("MainController", [
         mapLayers.infos.forEach((layer, i) => {
           mapas.removeLayer(layer);
           if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
+            $timeout(actualizacion, 1000);
         });
       }
     };
+
+    const styleInfo = (feature) => {
+      const height = 22 - displacementY;
+      return [
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: feature.properties.SHIP_NAME || "",
+            font: "bold 12px Calibri,sans-serif",
+            fill: new ol.style.Fill({
+              color: "white",
+            }),
+            textAlign: "left",
+            offsetY: height - 146,
+            offsetX: 15,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: feature.properties.PSC_TYPE || "",
+            font: "bold 12px Calibri,sans-serif",
+            fill: new ol.style.Fill({
+              color: "white",
+            }),
+            textAlign: "left",
+            offsetY: height - 132,
+            offsetX: 15,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "MMSI: " + (feature.properties.MMSI || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 90,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "Name: " + (feature.properties.SHIP_NAME || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 75,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text:
+              "Speed: " +
+              (feature.properties.SPEED_OVER_GROUND + "knots" || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 60,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "Latitude: " + (feature.geometry.coordinates[0] || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 45,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "Longitude: " + (feature.geometry.coordinates[1] || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 30,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "Source: " + (feature.properties.SOURCE || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height - 15,
+          }),
+        }),
+        new ol.style.Style({
+          text: new ol.style.Text({
+            text: "Heading: " + (feature.properties.HEADING || ""),
+            font: "12px Calibri,sans-serif",
+            textAlign: "left",
+            offsetY: height,
+          }),
+        }),
+        ...dibujo,
+      ];
+    };
+
+    const radius = 80;
+    displacementY = 70;
+
+    const dibujo = [
+      new ol.style.Style({
+        image: new ol.style.Circle({
+          fill: new ol.style.Fill({
+            color: "yellow",
+          }),
+          radius: 10,
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "blue",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [95, displacementY + 80],
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "blue",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [35, displacementY + 80],
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "white",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [95, displacementY + 40],
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "white",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [35, displacementY + 40],
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "white",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [95, displacementY],
+        }),
+      }),
+      new ol.style.Style({
+        image: new ol.style.RegularShape({
+          fill: new ol.style.Fill({
+            color: "white",
+          }),
+          points: 4,
+          radius: radius,
+          angle: 0.785398,
+          displacement: [35, displacementY],
+        }),
+      }),
+    ];
+
+    const fetchRTMPS = (service, clickPosition) => {
+      let minDistance = null;
+      let resultFeature = null;
+      const numDis = 1;
+      const lat1 = parseFloat(clickPosition.lat) - numDis;
+      const lng1 = parseFloat(clickPosition.lng) - numDis;
+      const lat2 = parseFloat(clickPosition.lat) + numDis;
+      const lng2 = parseFloat(clickPosition.lng) + numDis;
+      const bbox = lat1 + "," + lng1 + "," + lat2 + "," + lng2;
+      return fetch(service + "&BBOX=" + bbox)
+        .then((response) => response.json())
+        .then(
+          (data) =>
+            data &&
+            data.features &&
+            data.features.forEach((feature) => {
+              const featurePoint = {
+                lat: feature.geometry.coordinates[0],
+                lng: feature.geometry.coordinates[1],
+              };
+              const distance = mapService.distanciaCoord(
+                clickPosition,
+                featurePoint
+              );
+              if (minDistance == null || minDistance > distance) {
+                resultFeature = feature;
+                minDistance = distance;
+              }
+            })
+        )
+        .then(() => {
+          var iconFeature = new ol.Feature(
+            resultFeature &&
+              resultFeature.geometry &&
+              new ol.geom.Point([
+                resultFeature.geometry.coordinates[0],
+                resultFeature.geometry.coordinates[1],
+              ])
+          );
+          //console.log(iconFeature);
+          mapas.removeLayer(layerResultado);
+          layerResultado
+            .getSource()
+            .getFeatures()
+            .forEach((feature) =>
+              layerResultado.getSource().removeFeature(feature)
+            );
+          layerResultado.getSource().addFeature(iconFeature);
+          layerResultado.setStyle(styleInfo(resultFeature));
+          mapas.getLayers().push(layerResultado);
+          //console.log(layerResultado);
+        });
+    };
+
+    const actualizacion = () => {
+      let activo = false;
+      mapas.getLayers().forEach((layer) => {
+        if (layer.getProperties() && layer.getProperties().id) {
+          layer.getSource().refresh();
+          activo = true;
+        }
+      });
+      activo && $timeout(actualizacion, 20000); 
+    }
   },
 ]);
