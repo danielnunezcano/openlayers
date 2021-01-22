@@ -612,7 +612,7 @@ app.controller("MainController", [
           activo = true;
         }
       });
-      activo && $timeout(actualizacion, 20000); 
+      activo && $timeout(actualizacion, 60000); 
     }
   },
 ]);
