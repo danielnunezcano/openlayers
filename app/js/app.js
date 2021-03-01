@@ -11,7 +11,7 @@ app.factory("MapLayers", function () {
   this.style = (feature) => [
     new ol.style.Style({
       text: new ol.style.Text({
-        text: featureproperties.POS_ID,
+        text: feature.values_.POS_ID,
         font: "12px Calibri,sans-serif",
         textAlign: "left",
         offsetY: -15,
@@ -41,7 +41,7 @@ app.factory("MapLayers", function () {
     source: new ol.source.Vector({
       format: new ol.format.GeoJSON(),
       url:
-        "http://debian:8001/SEGServer/v1/wfs/SEGPositionsWfs?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG:SEG_ALL&maxFeatures=50&outputFormat=application/json",
+        "http://localhost:8001/SEGServer/v1/wms/SEGGetFeatureInfo?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetFeatureInfo&FORMAT=image%2Fpng&TRANSPARENT=true&QUERY_LAYERS=SEG%3ASEG_ALL&LAYERS=SEG%3ASEG_ALL&exceptions=application%2Fvnd.ogc.se_inimage&INFO_FORMAT=application/json&FEATURE_COUNT=200&X=50&Y=50&SRS=EPSG%3A4326&STYLES=&WIDTH=101&HEIGHT=101&bbox=-180.0%2C-90.0%2C180.0%2C90.0",
     }),
     style: this.style,
   });
@@ -62,11 +62,44 @@ app.factory("MapLayers", function () {
       },
       visible: true,
       projections: ["EPSG:4326"],
-      url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
+      url: "http://localhost:8080/v1/wms/SEGGetMap",
       params: {
         LAYERS: "SEG:SEG_ALL",
-        VERSION: "1.3.0",
+        VERSION: "1.1.0",
+        CQL_FILTER: "FISHERY = 0 AND FLAG_STATE IN ('ES','UK')"
       },
+      serverType: 'geoserver',
+      tileLoadFunction: function(image, src) {
+        //imageTile.getImage().src = src;
+        var xhr = new XMLHttpRequest();
+        const dataEntries = src.split("?");
+        const url = dataEntries[0];
+        const params = dataEntries[1];
+        xhr.open('POST', url, true);
+        xhr.responseType = 'arraybuffer';
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        xhr.setRequestHeader("Content-length", params.length);
+        xhr.setRequestHeader("Connection", "close");
+        xhr.onload = function(e) {
+          image.getImage().src = this.responseText;
+          if (this.status === 200) {
+            console.log("this.response",this.response);
+            var uInt8Array = new Uint8Array(this.response);
+            var i = uInt8Array.length;
+            var binaryString = new Array(i);
+            while (i--) {
+              binaryString[i] = String.fromCharCode(uInt8Array[i]);
+            }
+            var data = binaryString.join('');
+            var type = xhr.getResponseHeader('content-type');
+            if (type.indexOf('image') === 0) {
+              image.src = 'data:' + type + ';base64,' + window.btoa(data);
+            }
+          }
+        };
+        //SET THE PROPER HEADERS AND FINALLY SEND THE PARAMETERS 
+        xhr.send(params);
+      }
     }),
   });
   this.layerPositionInfo = new ol.layer.Tile({
@@ -75,7 +108,7 @@ app.factory("MapLayers", function () {
     source: new ol.source.TileWMS({
       visible: true,
       projections: ["EPSG:4326"],
-      url: "http://debian:8001/SEGServer/v1/wms/SEGPositions",
+      url: "http://localhost:8001/SEGServer/v1/wms/SEGPositions",
       params: {
         LAYERS: "SEG:SEG_ALL",
         VERSION: "1.3.0",
@@ -164,7 +197,7 @@ app.controller("MainController", [
   "MapLayers",
   function ($timeout, $scope, mapService, mapFactory, mapLayers) {
     const servicioWFS =
-      "http://debian:8001/SEGServer/v1/wfs/SEGPositionsWfs?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG:SEG_ALL&maxFeatures=50&outputFormat=application/json";
+      "http://localhost:8001/SEGServer/v1/wms/SEGGetFeatureInfo?service=WFS&version=1.0.0&request=GetFeature&typeName=SEG:SEG_ALL&maxFeatures=50&outputFormat=application/json";
     $scope.transparenLayer = true;
     $scope.visibleLayers = 0;
     $scope.visibleInfo = [];
@@ -179,6 +212,17 @@ app.controller("MainController", [
     let lon = -0.4796058945;
     let lat = 38.3346994376;
     let mapas = null;
+
+    // mapLayers.infos[0].getSource().on("tileloadstart", function () {
+    //   console.log("tileloadstart");
+    // });
+
+    // mapLayers.infos[0].getSource().on("tileloadend", function () {
+    //   console.log("tileloadend");
+    // });
+    // mapLayers.infos[0].getSource().on("tileloaderror", function () {
+    //   console.log("tileloaderror");
+    // });
 
     var tiempo = "PT0H/PRESENT";
 
@@ -376,7 +420,7 @@ app.controller("MainController", [
         mapLayers.infos.forEach((layer, i) => {
           mapas.removeLayer(layer);
           if ($scope.visibleInfo[i]) mapas.getLayers().push(layer);
-            $timeout(actualizacion, 1000);
+          $timeout(actualizacion, 1000);
         });
       }
     };
@@ -612,7 +656,7 @@ app.controller("MainController", [
           activo = true;
         }
       });
-      activo && $timeout(actualizacion, 60000); 
-    }
+      activo && $timeout(actualizacion, 60000);
+    };
   },
 ]);
